@@ -5,11 +5,13 @@ import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Reader (ReaderT, asks, runReaderT)
 import qualified Data.ByteString.Char8 as B
 import           Data.Char (toLower)
+import           Data.Foldable (for_)
 import           Data.Functor ((<$>))
 import           Data.Traversable (traverse)
 import           Network
 import           Network.IRC.Base ( Message(Message)
                                   , Prefix(NickName)
+                                  , showMessage
                                   )
 import           Network.IRC.Parser (decode)
 import           System.Exit
@@ -91,10 +93,8 @@ isMaster s = s == "predator117" || s == "predator217"
 loop :: IRC ()
 loop = do
   line <- ircGetLine
-  onJust (decode line) $ \msg ->
-    (if messageFromMaster msg then handleMasterMsg else handleMsg line) msg
-  where onJust Nothing _ = return ()
-        onJust (Just msg) f = (f msg)
+  for_ (decode line) $ \msg ->
+    (if messageFromMaster msg then handleMasterMsg else handleMsg) msg
 
 handleMasterMsg :: Message -> IRC ()
 handleMasterMsg msg = case msg of
@@ -103,13 +103,12 @@ handleMasterMsg msg = case msg of
   LEAVE _ -> quit "It was a pleasure." >> liftIO exitSuccess
   COMMAND c _ -> sendMsg c "Sorry I don't know that command."
 
-handleMsg :: B.ByteString -> Message -> IRC ()
-handleMsg line msg = case msg of
+handleMsg :: Message -> IRC ()
+handleMsg msg = case msg of
   PING s -> pong s
   JOIN c -> sendMsg c "Your faithful servant awaits commands."
   COMMAND c _ -> sendMsg c "You are not my master."
-  _ -> liftIO $ B.putStrLn line
-
+  _ -> liftIO . B.putStrLn . showMessage $ msg
 pong :: B.ByteString -> IRC ()
 pong = ircPutStrLn . B.append "PONG :"
 
