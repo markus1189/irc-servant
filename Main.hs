@@ -50,16 +50,22 @@ pattern PING s <- Message _ "PING" [s]
 pattern JOIN c <- Message _ "JOIN" [c]
 pattern PRIVMSG c s <- Message _ "PRIVMSG" [c,s]
 
+lowerCase :: String -> String
+lowerCase = map toLower
+
+lowerWords :: String -> [String]
+lowerWords = words . lowerCase
+
 pattern COMMAND c cmd <- PRIVMSG c (B.unpack -> '>':' ':cmd)
-pattern SAY_HELLO c <- COMMAND c (map toLower -> "say hello")
-pattern SAY_TIME c <- COMMAND c (map toLower -> "what time is it?")
-pattern LEAVE c <- COMMAND c (map toLower -> "get lost")
-pattern CONFIRMATION c <- COMMAND c (map toLower -> "right?")
-pattern LIST_MASTERS c <- COMMAND c (map toLower -> "masters")
-pattern ADD_MASTER c master <- COMMAND c (words . map toLower -> ["add-master",master])
-pattern REMOVE_MASTER c master <- COMMAND c (words . map toLower -> ["remove-master",master])
-pattern JOIN_CHAN srcChan toJoinChan <- COMMAND srcChan (words . map toLower -> ["join-channel",toJoinChan])
-pattern PART_CHAN c <- COMMAND c (map toLower -> "part-channel")
+pattern SAY_HELLO c <- COMMAND c (lowerCase -> "say hello")
+pattern SAY_TIME c <- COMMAND c (lowerCase -> "what time is it?")
+pattern LEAVE c <- COMMAND c (lowerCase -> "get lost")
+pattern CONFIRMATION c <- COMMAND c (lowerCase -> "right?")
+pattern LIST_MASTERS c <- COMMAND c (lowerCase -> "masters")
+pattern ADD_MASTER c master <- COMMAND c (lowerWords -> ["add-master",master])
+pattern REMOVE_MASTER c master <- COMMAND c (lowerWords -> ["remove-master",master])
+pattern JOIN_CHAN srcChan toJoinChan <- COMMAND srcChan (lowerWords -> ["join-channel",toJoinChan])
+pattern PART_CHAN c <- COMMAND c (lowerCase -> "part-channel")
 
 messageFromMaster :: Message -> IRC Bool
 messageFromMaster (Message (Just (NickName n _ _)) _ _) = Set.member n <$> use cfgMasters
