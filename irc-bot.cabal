@@ -19,9 +19,9 @@ executable irc-bot
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
-  build-depends:       mtl >= 2.2.1,
-                       bytestring >= 0.10.4.0,
-                       base >=4.7 && <4.8,
+  build-depends:       base >=4.7 && <4.8,
+                       mtl,
+                       bytestring,
                        network,
                        random,
                        irc,
