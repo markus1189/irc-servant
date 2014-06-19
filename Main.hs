@@ -58,6 +58,8 @@ pattern CONFIRMATION c <- COMMAND c (map toLower -> "right?")
 pattern LIST_MASTERS c <- COMMAND c (map toLower -> "masters")
 pattern ADD_MASTER c master <- COMMAND c (words . map toLower -> ["add-master",master])
 pattern REMOVE_MASTER c master <- COMMAND c (words . map toLower -> ["remove-master",master])
+pattern JOIN_CHAN srcChan toJoinChan <- COMMAND srcChan (words . map toLower -> ["join-channel",toJoinChan])
+pattern PART_CHAN c <- COMMAND c (map toLower -> "part-channel")
 
 messageFromMaster :: Message -> IRC Bool
 messageFromMaster (Message (Just (NickName n _ _)) _ _) = Set.member n <$> use cfgMasters
@@ -114,6 +116,9 @@ main = do
 sendMsg :: B.ByteString -> B.ByteString -> IRC ()
 sendMsg c s = ircPutStrLn . B.concat $ ["PRIVMSG ", c, " :",s]
 
+partChan :: B.ByteString -> IRC ()
+partChan chan = ircPutStrLn . B.concat $ ["PART ",chan]
+
 loop :: IRC ()
 loop = do
   line <- ircGetLine
@@ -133,6 +138,10 @@ handleMasterMsg msg = case msg of
     wasMaster <- Set.member (B.pack mas) <$> use cfgMasters
     cfgMasters %= (Set.delete . B.pack) mas
     when wasMaster $ sendMsg c "Removed."
+  JOIN_CHAN src tgt -> do
+    joinChan . B.pack $ tgt
+    sendMsg src $ B.append "Joining " (B.pack tgt)
+  PART_CHAN c -> partChan c >> sendMsg c "Goodbye."
   SAY_HELLO c -> sendMsg c "Hello everybody."
   SAY_TIME c -> (liftIO $ readProcess "date" [] []) >>= (sendMsg c . B.pack)
   LEAVE c -> do
