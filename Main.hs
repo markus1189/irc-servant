@@ -31,14 +31,14 @@ runIRC cfg m = evalStateT m cfg
 
 data IRCConfig = IRCConfig { _cfgHandle :: Handle
                            , _cfgName :: B.ByteString
-                           , _cfgChannels :: [B.ByteString]
+                           , _cfgChannels :: Set.Set B.ByteString
                            , _cfgMasters :: Set.Set B.ByteString
                            , _cfgJoinedChannels :: Set.Set B.ByteString
                            }
 makeLenses ''IRCConfig
 
 defaultConfig :: Handle -> IRCConfig
-defaultConfig h = IRCConfig h "IrcServant" [] Set.empty Set.empty
+defaultConfig h = IRCConfig h "IrcServant" Set.empty Set.empty Set.empty
 
 pattern PING s <- Message _ "PING" [s]
 pattern JOIN c <- Message _ "JOIN" [c]
@@ -96,24 +96,23 @@ main = do
       hSetBuffering h NoBuffering
       hSetNewlineMode h (NewlineMode CRLF CRLF)
 
-      rndNumber <- (B.pack . show) <$> (randomIO :: IO Int)
+      launchBot h (Set.singleton $ head args) (tail args)
 
-      runIRC (defaultConfig h) $ do
+launchBot :: Handle -> Set.Set B.ByteString -> [B.ByteString] -> IO a
+launchBot h masters channels = runIRC (defaultConfig h) $ do
+  cfgMasters %= Set.union masters
+  cfgChannels %= Set.union (Set.fromList channels)
 
-        cfgChannels %= (++ tail args)
-        cfgMasters %= Set.insert (head args)
+  use cfgMasters >>= liftIO . B.putStrLn . B.intercalate ", " . Set.toList
 
-        use cfgMasters >>= liftIO . B.putStrLn . B.intercalate ", " . Set.toList
+  rndNumber <- liftIO $ (B.pack . show) <$> (randomIO :: IO Int)
+  rndName <- (`B.append` rndNumber) <$> use cfgName
 
-        n <- use cfgName
-        let s = B.append n rndNumber
+  nick rndName >> user rndName
 
-        nick s >> user s
+  use cfgChannels >>= traverse_ joinChan
 
-        chans <- use cfgChannels
-        traverse_ joinChan chans
-
-        forever loop
+  forever loop
 
 sendMsg :: B.ByteString -> B.ByteString -> IRC ()
 sendMsg c s = ircPutStrLn . B.concat $ ["PRIVMSG ", c, " :",s]
