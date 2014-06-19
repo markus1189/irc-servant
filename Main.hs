@@ -24,13 +24,6 @@ import           System.Posix.Env.ByteString (getArgs)
 import           System.Process
 import           System.Random (randomIO)
 
--- makeLensesFor [ ("msg_prefix", "msgPrefix")
---               , ("msg_params", "msgParams")
---               , ("msg_command", "msgCommand")] ''Message
-
--- srcChannel :: Traversal' Message B.ByteString
--- srcChannel = msgParams . _head
-
 type IRC a = StateT IRCConfig IO a
 
 runIRC :: IRCConfig -> IRC a -> IO a
