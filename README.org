@@ -5,3 +5,16 @@ Inspired by [[https://www.fpcomplete.com/user/icelandj/Pattern%2520synonyms][an 
 
 Usage: ~irc-servant <master> <channel>...~ (master is the one the bot
 accepts commands from initially)
+
+
+Commands (*must* start with '> '):
+- say hello
+- what time is it?
+- get lost
+- right?
+- masters
+- channels
+- add-master <master>
+- remove-master <master>
+- join-channel <channel>
+- part-channel
