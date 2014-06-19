@@ -1,7 +1,7 @@
 Toy example for an irc bot in haskell, in addition to playing with
 GHC's ~PatternSynonyms~.
 
-Inspired by [[https://www.fpcomplete.com/user/icelandj/Pattern%2520synonyms][an fpcomplete article]].
+Inspired by [[https://www.fpcomplete.com/user/icelandj/Pattern%20synonyms][a fpcomplete article]].
 
 Usage: ~irc-servant <master> <channel>...~ (master is the one the bot
 accepts commands from initially)
