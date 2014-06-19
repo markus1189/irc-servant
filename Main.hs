@@ -2,9 +2,11 @@
 
 import           Control.Monad (forever)
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Reader (ReaderT, ask, runReaderT)
+import           Control.Monad.Reader (ReaderT, asks, runReaderT)
 import qualified Data.ByteString.Char8 as B
 import           Data.Char (toLower)
+import           Data.Functor ((<$>))
+import           Data.Traversable (traverse)
 import           Network
 import           Network.IRC.Base ( Message(Message)
                                   , Prefix(NickName)
@@ -15,10 +17,18 @@ import           System.IO
 import           System.Process
 import           System.Random (randomIO)
 
-type IRC a = ReaderT Handle IO a
+type IRC a = ReaderT IRCConfig IO a
 
-runIRC :: Handle -> IRC a -> IO a
-runIRC h m = runReaderT m h
+runIRC :: IRCConfig -> IRC a -> IO a
+runIRC cfg m = runReaderT m cfg
+
+data IRCConfig = IRCConfig { _handle :: Handle
+                           , _name :: B.ByteString
+                           , _channels :: [B.ByteString]
+                           }
+
+defaultConfig :: Handle -> IRCConfig
+defaultConfig h = IRCConfig h "IrcServant" ["##markus-irc-bot","##os2-lab"]
 
 pattern PING s <- Message _ "PING" [s]
 pattern JOIN c <- Message _ "JOIN" [c]
@@ -29,16 +39,18 @@ pattern SAY_HELLO c <- COMMAND c (map toLower -> "say hello")
 pattern SAY_TIME c <- COMMAND c (map toLower -> "what time is it?")
 pattern LEAVE c <- COMMAND c (map toLower -> "get lost")
 
-pattern FROM_MASTER <- Message (Just (NickName (isMaster -> True) _ _)) _ _
+messageFromMaster :: Message -> Bool
+messageFromMaster (Message (Just (NickName (isMaster -> True) _ _)) _ _) = True
+messageFromMaster _ = False
 
 ircPutStrLn :: B.ByteString -> IRC ()
 ircPutStrLn s = do
-  h <- ask
+  h <- asks _handle
   liftIO $ B.hPutStrLn h s
 
 ircGetLine :: IRC B.ByteString
 ircGetLine = do
-  h <- ask
+  h <- asks _handle
   liftIO $ B.hGetLine h
 
 nick :: B.ByteString -> IRC ()
@@ -56,13 +68,17 @@ main = do
   hSetBuffering   h NoBuffering
   hSetNewlineMode h (NewlineMode CRLF CRLF)
 
-  rndNumber <- randomIO :: IO Int
+  rndNumber <- (B.pack . show) <$> (randomIO :: IO Int)
 
-  runIRC h $ do
-    nick $ B.append "IRCBot" (B.pack . show $ rndNumber)
-    user $ B.append "IRCBot" (B.pack . show $ rndNumber)
+  runIRC (defaultConfig h) $ do
+    n <- asks _name
+    let s = B.append n rndNumber
 
-    joinChan "##os2-lab"
+    nick s >> user s
+
+    cs <- asks _channels
+
+    traverse joinChan cs
 
     forever loop
 
@@ -75,26 +91,27 @@ isMaster s = s == "predator117" || s == "predator217"
 loop :: IRC ()
 loop = do
   line <- ircGetLine
-  flip (maybe $ return ()) (decode line) $ \msg ->
-    case msg of
-      FROM_MASTER -> handleMasterMsg msg line
-      _ -> handleMsg msg line
+  onJust (decode line) $ \msg ->
+    (if messageFromMaster msg then handleMasterMsg else handleMsg line) msg
+  where onJust Nothing _ = return ()
+        onJust (Just msg) f = (f msg)
 
-handleMasterMsg :: Message -> B.ByteString -> IRC ()
-handleMasterMsg msg line = case msg of
+handleMasterMsg :: Message -> IRC ()
+handleMasterMsg msg = case msg of
   SAY_HELLO c -> sendMsg c "Hello everybody."
   SAY_TIME c -> (liftIO $ readProcess "date" [] []) >>= (sendMsg c . B.pack)
-  LEAVE _ -> do
-    ircPutStrLn "QUIT :It was a pleasure."
-    liftIO exitSuccess
-  _ -> liftIO $ B.putStr "Don't know what about: " >> B.putStrLn line
+  LEAVE _ -> quit "It was a pleasure." >> liftIO exitSuccess
+  COMMAND c _ -> sendMsg c "Sorry I don't know that command."
 
-handleMsg :: Message -> B.ByteString -> IRC ()
-handleMsg msg line = case msg of
+handleMsg :: B.ByteString -> Message -> IRC ()
+handleMsg line msg = case msg of
   PING s -> pong s
   JOIN c -> sendMsg c "Your faithful servant awaits commands."
   COMMAND c _ -> sendMsg c "You are not my master."
-  _ -> liftIO $ B.putStr "Don't know what to do with: " >> B.putStrLn line
+  _ -> liftIO $ B.putStrLn line
 
 pong :: B.ByteString -> IRC ()
 pong = ircPutStrLn . B.append "PONG :"
+
+quit :: B.ByteString -> IRC ()
+quit = ircPutStrLn . B.append "QUIT: "
