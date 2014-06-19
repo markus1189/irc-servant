@@ -40,14 +40,16 @@ data IRCConfig = IRCConfig { _cfgHandle :: Handle
                            , _cfgName :: B.ByteString
                            , _cfgChannels :: [B.ByteString]
                            , _cfgMasters :: Set.Set B.ByteString
+                           , _cfgJoinedChannels :: Set.Set B.ByteString
                            }
 makeLenses ''IRCConfig
 
 defaultConfig :: Handle -> IRCConfig
-defaultConfig h = IRCConfig h "IrcServant" [] Set.empty
+defaultConfig h = IRCConfig h "IrcServant" [] Set.empty Set.empty
 
 pattern PING s <- Message _ "PING" [s]
 pattern JOIN c <- Message _ "JOIN" [c]
+pattern PART c <- Message _ "PART" [c]
 pattern PRIVMSG c s <- Message _ "PRIVMSG" [c,s]
 
 lowerCase :: String -> String
@@ -62,6 +64,7 @@ pattern SAY_TIME c <- COMMAND c (lowerCase -> "what time is it?")
 pattern LEAVE c <- COMMAND c (lowerCase -> "get lost")
 pattern CONFIRMATION c <- COMMAND c (lowerCase -> "right?")
 pattern LIST_MASTERS c <- COMMAND c (lowerCase -> "masters")
+pattern LIST_CHANNELS c <- COMMAND c (lowerCase -> "channels")
 pattern ADD_MASTER c master <- COMMAND c (lowerWords -> ["add-master",master])
 pattern REMOVE_MASTER c master <- COMMAND c (lowerWords -> ["remove-master",master])
 pattern JOIN_CHAN srcChan toJoinChan <- COMMAND srcChan (lowerWords -> ["join-channel",toJoinChan])
@@ -137,6 +140,8 @@ handleMasterMsg msg = case msg of
   LIST_MASTERS c -> do
     ms <- use cfgMasters
     sendMsg c . B.intercalate ", " . Set.toList $ ms
+  LIST_CHANNELS c -> do
+    use cfgJoinedChannels >>= sendMsg c . B.intercalate ", " . Set.toList
   ADD_MASTER c mas -> do
     cfgMasters %= (Set.insert . B.pack) mas
     sendMsg c $ B.append "Hello, "( B.pack mas)
@@ -161,7 +166,10 @@ handleMasterMsg msg = case msg of
 handleMsg :: Message -> IRC ()
 handleMsg msg = case msg of
   PING s -> pong s
-  JOIN c -> sendMsg c "Your faithful servant awaits commands."
+  JOIN c -> do
+    cfgJoinedChannels %= Set.insert c
+    sendMsg c "Your faithful servant awaits commands."
+  PART c -> cfgJoinedChannels %= Set.delete c
   COMMAND c _ -> sendMsg c "You are not my master."
   _ -> liftIO . B.putStrLn . showMessage $ msg
 
