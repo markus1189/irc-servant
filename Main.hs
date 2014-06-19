@@ -40,7 +40,7 @@ data IRCConfig = IRCConfig { _cfgHandle :: Handle
 makeLenses ''IRCConfig
 
 defaultConfig :: Handle -> IRCConfig
-defaultConfig h = IRCConfig h "IrcServant" ["##markus-irc-bot","##os2-lab"]
+defaultConfig h = IRCConfig h "IrcServant" ["##markus-irc-bot"]
 
 pattern PING s <- Message _ "PING" [s]
 pattern JOIN c <- Message _ "JOIN" [c]
