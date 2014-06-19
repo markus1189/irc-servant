@@ -16,10 +16,13 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 executable irc-bot
+  ghc-options:         -Wall
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
-  build-depends:       base >=4.7 && <4.8,
+  build-depends:       containers,
+                       unix,
+                       base >=4.7 && <4.8,
                        mtl,
                        bytestring,
                        network,
